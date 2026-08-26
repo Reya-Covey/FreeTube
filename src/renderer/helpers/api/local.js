@@ -1675,7 +1675,7 @@ export function parseLocalListVideo(item, channelId, channelName) {
       title: video.title.text?.trim(),
       author: video.author?.name ?? channelName,
       authorId: (video.author?.id != null && video.author.id !== 'N/A') ? video.author.id : channelId,
-      collaboratorIds: video.author?.collaborators.map(collaborator => collaborator.renderer_context?.command_context?.on_tap?.payload?.browseId) ?? [],
+      collaborators: video.author == null ? [] : parseLocalCollaborators(video.author.collaborators),
       viewCount: video.views.text == null ? null : extractNumberFromString(video.views.text),
       published,
       lengthSeconds: isLive ? '' : Utils.timeToSeconds(video.duration.text),
@@ -1734,7 +1734,7 @@ export function parseLocalListVideo(item, channelId, channelName) {
       title: video.title.text?.trim(),
       author: video.author.name !== 'N/A' ? video.author.name : channelName,
       authorId: video.author.id !== 'N/A' ? video.author.id : channelId,
-      collaboratorIds: video.author.collaborators.map(collaborator => collaborator.renderer_context?.command_context?.on_tap?.payload?.browseId),
+      collaborators: parseLocalCollaborators(video.author.collaborators),
       description: video.description,
       viewCount,
       published,
@@ -1903,9 +1903,12 @@ function parseLockupView(lockupView, channelId = undefined, channelName = undefi
         author = maybeAuthorText
       }
 
-      const maybeCollaboratorIds = lockupView.metadata.image?.renderer_context?.command_context?.on_tap?.command?.inline_content?.custom_content?.items
+      let collaborators = []
+      const maybeCollaborators = lockupView.metadata.image?.renderer_context?.command_context?.on_tap?.command?.inline_content?.custom_content?.items
         .filter(item => item.renderer_context?.command_context?.on_tap?.metadata?.page_type === 'WEB_PAGE_TYPE_CHANNEL')
-        .map(item => item.renderer_context?.command_context?.on_tap?.payload?.browseId)
+      if (maybeCollaborators) {
+        collaborators = parseLocalCollaborators(maybeCollaborators)
+      }
 
       return {
         type: 'video',
@@ -1913,7 +1916,7 @@ function parseLockupView(lockupView, channelId = undefined, channelName = undefi
         title: lockupView.metadata.title.text?.trim(),
         author,
         authorId: lockupView.metadata.image?.renderer_context?.command_context?.on_tap?.payload.browseId ?? channelId,
-        collaboratorIds: maybeCollaboratorIds ?? [],
+        collaborators,
         viewCount,
         published: calculatePublishedDate(publishedText, liveNow, isUpcoming, premiereDate),
         lengthSeconds,
@@ -2467,6 +2470,16 @@ function parseLocalAttachment(attachment) {
     console.error(`Unknown Local community post type: ${attachment.type}`)
     console.error(attachment)
   }
+}
+
+/**
+ * @param {import('youtubei.js').YTNodes.ListItemView[]} collaborators
+ */
+function parseLocalCollaborators(collaborators) {
+  return collaborators.map(collaborator => ({
+    id: collaborator.renderer_context?.command_context?.on_tap?.payload?.browseId,
+    name: collaborator.title?.text,
+  }))
 }
 
 export async function getHashtagLocal(hashtag) {
